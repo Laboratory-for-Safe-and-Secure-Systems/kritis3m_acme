@@ -1,6 +1,6 @@
 module github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme
 
-go 1.23.5
+go 1.23
 
 require (
 	github.com/go-chi/chi/v5 v5.2.0
