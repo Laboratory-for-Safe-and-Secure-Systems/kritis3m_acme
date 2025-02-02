@@ -12,6 +12,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Checkout Dependencies Repository (Private)
+      env:
+        GIT_TOKEN: ${{ secrets.ORG_ACCESS_TOKEN }}
+      run: |
+        git clone https://$GIT_TOKEN@github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_workspace dependencies
+
+    - name: Build Shared Libraries
+      run: |
+        cd dependencies/repositories
+        ./clone.sh && ./build-linux.sh
+
     - name: Cache Go modules
       uses: actions/cache@v3
       with:
