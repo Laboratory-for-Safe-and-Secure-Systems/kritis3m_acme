@@ -6,22 +6,39 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+  pull-requests: read
+  repository-projects: read
+
 jobs:
   build:
     runs-on: ubuntu-22.04  # Use a faster runner
     steps:
     - uses: actions/checkout@v4
 
-    - name: Checkout Dependencies Repository (Private)
-      env:
-        GIT_TOKEN: ${{ secrets.ORG_ACCESS_TOKEN }}
+    - name: Install KRITIS3M Dependencies
       run: |
-        git clone https://$GIT_TOKEN@github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_workspace dependencies
+        # Fetch the asset URL from GitHub API
+        ASSET_URL=$(curl -s -H "Authorization: token ${{ secrets.ORG_ACCESS_TOKEN }}" \
+          "https://api.github.com/repos/Laboratory-for-Safe-and-Secure-Systems/kritis3m_workspace/releases/latest" \
+          | jq -r '.assets[]
+          | select(.name | startswith("kritis3m-dependencies-"))
+          | .url'
+          )
+        echo "Downloading dependencies from $ASSET_URL"
 
-    - name: Build Shared Libraries
-      run: |
-        cd dependencies/repositories
-        ./clone.sh && ./build-linux.sh
+        # Download the release asset from the private repo
+        curl -sSL -H "Authorization: token ${{ secrets.ORG_ACCESS_TOKEN }}" \
+          -H "Accept: application/octet-stream" \
+          "$ASSET_URL" -o /tmp/kritis3m-dependencies.tar.gz
+
+        # Extract dependencies to /usr/local/lib
+        sudo tar -xf /tmp/kritis3m-dependencies.tar.gz -C /
+        sudo ldconfig
+
+        # List extracted files
+        ls -la /usr/local/lib
 
     - name: Cache Go modules
       uses: actions/cache@v3
