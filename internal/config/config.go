@@ -4,37 +4,53 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 )
 
 // Config holds all configuration settings for the application
 type Config struct {
 	Server struct {
-		Port int    `json:"port" env:"SERVER_PORT"`
-		Host string `json:"host" env:"SERVER_HOST"`
+		ListenAddr string `json:"listen_addr"`
 	} `json:"server"`
 
 	ACME struct {
 		DirectoryURL string `json:"directoryURL" env:"ACME_DIRECTORY_URL"`
 		Environment  string `json:"environment" env:"ACME_ENVIRONMENT"`
 	} `json:"acme"`
-}
 
-// DefaultConfig returns a configuration with default values
-func DefaultConfig() *Config {
-	cfg := &Config{}
-	cfg.Server.Port = 8080
-	cfg.Server.Host = "localhost"
-	cfg.ACME.Environment = "development"
-	cfg.ACME.DirectoryURL = "https://acme-staging-v02.api.letsencrypt.org/directory"
-	return cfg
+	CA struct {
+		Certs      string `json:"certificates"`
+		PrivateKey string `json:"private_key"`
+	} `json:"ca"`
+
+	TLS struct {
+		Certs      string   `json:"certificates"`
+		PrivateKey string   `json:"private_key"`
+		ClientCAs  []string `json:"client_cas"`
+	} `json:"tls"`
+
+	PKCS11 struct {
+		EntityModule struct {
+			Path string `json:"path"`
+			Pin  string `json:"pin"`
+		} `json:"entity_module"`
+	} `json:"pkcs11"`
+
+	Endpoint struct {
+		MutualAuthentication bool   `json:"mutual_authentication"`
+		NoEncryption         bool   `json:"no_encryption"`
+		ASLKeyExchangeMethod int    `json:"asl_key_exchange_method"`
+		KeylogFile           string `json:"keylog_file"`
+	} `json:"endpoint"`
+
+	ASLConfig struct {
+		LoggingEnabled          bool `json:"logging_enabled"`
+		LogLevel                int  `json:"log_level"`
+		SecureElementLogSupport bool `json:"secure_element_log_support"`
+	} `json:"asl_config"`
 }
 
 // Load reads configuration from a JSON file and environment variables
-func Load(filepath string) (*Config, error) {
-	// Start with default configuration
-	cfg := DefaultConfig()
-
+func Load(filepath string, cfg *Config) (*Config, error) {
 	// If filepath is provided, load configuration from JSON file
 	if filepath != "" {
 		file, err := os.ReadFile(filepath)
@@ -47,61 +63,7 @@ func Load(filepath string) (*Config, error) {
 		}
 	}
 
-	// Override with environment variables
-	if err := loadEnvVars(cfg); err != nil {
-		return nil, fmt.Errorf("error loading environment variables: %w", err)
-	}
-
-	// Validate the configuration
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
-	}
-
 	return cfg, nil
-}
-
-// loadEnvVars overrides configuration with environment variables
-func loadEnvVars(cfg *Config) error {
-	// Server configuration
-	if port := os.Getenv("SERVER_PORT"); port != "" {
-		p, err := strconv.Atoi(port)
-		if err != nil {
-			return fmt.Errorf("invalid SERVER_PORT: %w", err)
-		}
-		cfg.Server.Port = p
-	}
-
-	if host := os.Getenv("SERVER_HOST"); host != "" {
-		cfg.Server.Host = host
-	}
-
-	// ACME configuration
-	if url := os.Getenv("ACME_DIRECTORY_URL"); url != "" {
-		cfg.ACME.DirectoryURL = url
-	}
-
-	if env := os.Getenv("ACME_ENVIRONMENT"); env != "" {
-		cfg.ACME.Environment = env
-	}
-
-	return nil
-}
-
-// Validate checks if the configuration is valid
-func (c *Config) Validate() error {
-	if c.Server.Port < 1 || c.Server.Port > 65535 {
-		return fmt.Errorf("invalid port number: %d", c.Server.Port)
-	}
-
-	if c.Server.Host == "" {
-		return fmt.Errorf("host cannot be empty")
-	}
-
-	if c.ACME.Environment != "development" && c.ACME.Environment != "production" {
-		return fmt.Errorf("invalid environment: %s", c.ACME.Environment)
-	}
-
-	return nil
 }
 
 // String returns a string representation of the configuration

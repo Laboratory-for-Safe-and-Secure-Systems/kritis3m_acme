@@ -40,8 +40,6 @@ func ParseFlags() error {
 		fmt.Fprintf(os.Stderr, "Environment variables:\n")
 		fmt.Fprintf(os.Stderr, "  SERVER_PORT       Override server port\n")
 		fmt.Fprintf(os.Stderr, "  SERVER_HOST       Override server host\n")
-		fmt.Fprintf(os.Stderr, "  ACME_DIRECTORY_URL Override ACME directory URL\n")
-		fmt.Fprintf(os.Stderr, "  ACME_ENVIRONMENT  Override ACME environment\n")
 	}
 
 	// Parse flags
@@ -66,7 +64,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	// Load configuration
-	cfg, err := Load(GlobalFlags.ConfigPath)
+	cfg, err := Load(GlobalFlags.ConfigPath, &Config{})
 	if err != nil {
 		return nil, fmt.Errorf("error loading config: %w", err)
 	}
