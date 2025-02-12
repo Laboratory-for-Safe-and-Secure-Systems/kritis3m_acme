@@ -25,6 +25,8 @@ func New(ctx context.Context) *chi.Mux {
 	// Middleware
 	r.Use(withLogger(logger.GetLogger(ctx)))
 	r.Use(middleware.Recoverer)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Heartbeat("/health"))
 	r.Use(middleware.RequestID)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},

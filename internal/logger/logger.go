@@ -136,23 +136,13 @@ func (l *Logger) logw(level zerolog.Level, msg string, keysAndValues ...interfac
 	// Start a new event at the specified level.
 	event := l.logger.WithLevel(level)
 
-	// Get the caller information.
-	skip := 2
-	_, file, line, ok := runtime.Caller(skip) // Adjust skip level if needed.
-	if ok {
-		for strings.Contains(file, "runtime/") || strings.Contains(file, "zerolog/") || strings.Contains(file, "logger/") || strings.Contains(file, "log/") {
-			_, file, line, ok = runtime.Caller(skip + 1)
-			if !ok {
-				break
-			}
-			skip++
-		}
-		shortFile := fmt.Sprintf("%s/%s:%d", filepath.Base(filepath.Dir(file)), filepath.Base(file), line)
-		// Add the caller info to the event.
-		event = event.Str("caller", shortFile)
+	// Determine the "real" caller (skip the wrapper/reflect frames).
+	caller := getRealCaller(2) // start at skip=2; adjust if needed
+	if caller != "" {
+		event = event.Str("caller", caller)
 	}
 
-	// Add the stored fields.
+	// Add any static fields from the logger.
 	for _, kv := range l.fields {
 		event = event.Interface(kv.key, kv.value)
 	}
@@ -161,18 +151,52 @@ func (l *Logger) logw(level zerolog.Level, msg string, keysAndValues ...interfac
 	if len(keysAndValues)%2 != 0 {
 		panic("number of arguments is not a multiple of 2")
 	}
-
 	for i := 0; i < len(keysAndValues); i += 2 {
 		key, ok := keysAndValues[i].(string)
 		if !ok {
 			panic(fmt.Sprintf("argument %d is not a string", i))
 		}
-		value := keysAndValues[i+1]
-		event = event.Interface(key, value)
+		event = event.Interface(key, keysAndValues[i+1])
 	}
 
 	// Log the message.
 	event.Msg(msg)
+}
+
+// getRealCaller walks up the call stack starting at skip and returns a short file:line
+// string from the first frame that does not belong to a package we want to skip.
+func getRealCaller(skip int) string {
+	for {
+		_, file, line, ok := runtime.Caller(skip)
+		if !ok {
+			break
+		}
+		if !shouldSkip(file) {
+			// Format the caller info to show the last two directories.
+			return shortFilePath(file, line)
+		}
+		skip++
+	}
+	return ""
+}
+
+// shouldSkip returns true if the given file path belongs to a package
+// that we want to ignore in the caller info.
+func shouldSkip(file string) bool {
+	skipSubstrings := []string{"runtime/", "zerolog/", "logging/", "logger/", "log/", "reflect/"}
+	for _, substr := range skipSubstrings {
+		if strings.Contains(file, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+// shortFilePath shortens the file path to include only the last two segments plus the line.
+func shortFilePath(file string, line int) string {
+	dir, fileName := filepath.Split(file)
+	parentDir := filepath.Base(filepath.Clean(dir))
+	return fmt.Sprintf("%s/%s:%d", parentDir, fileName, line)
 }
 
 // --- Standard Library Logging Interface Methods ---
