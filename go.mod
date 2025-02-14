@@ -8,7 +8,7 @@ require (
 )
 
 require (
-	github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.0.5
+	github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.1.0
 	github.com/rs/zerolog v1.33.0
 )
 

@@ -1,5 +1,5 @@
-github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.0.5 h1:8Zd7jfnU2H7OgIZoWlLekXgw6NOQ/dCj28SKiPmAtxk=
-github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.0.5/go.mod h1:pUxDWo2MRQ4ooveHjGSwqvedFLIDJFQp7IBVRmRxYPI=
+github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.1.0 h1:RDJe4klx3lFYW4Kfd1v/6QwOTUXsQZC6ABif5+gsie8=
+github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.1.0/go.mod h1:pUxDWo2MRQ4ooveHjGSwqvedFLIDJFQp7IBVRmRxYPI=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/go-chi/chi/v5 v5.2.0 h1:Aj1EtB0qR2Rdo2dG4O94RIU35w2lvQSj6BRA4+qwFL0=
 github.com/go-chi/chi/v5 v5.2.0/go.mod h1:DslCQbL2OYiznFReuXYUmQ2hGd1aDpCnlMNITLSKoi8=

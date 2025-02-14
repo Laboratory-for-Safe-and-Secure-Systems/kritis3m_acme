@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/cors"
 
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/api/handlers"
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/api/middleware/acme"
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/logger"
 )
 
@@ -22,29 +23,54 @@ const (
 func New(ctx context.Context) *chi.Mux {
 	r := chi.NewRouter()
 
-	// Middleware
+	// Global middleware
 	r.Use(withLogger(logger.GetLogger(ctx)))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Heartbeat("/health"))
 	r.Use(middleware.RequestID)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
+		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type", "Content-Length"},
+		MaxAge:         300, // Maximum value not ignored by any of major browsers
 	}))
 
-	// ACME Directory endpoints
+	// Public endpoints (no nonce or JWT verification required)
+	r.Get("/health", handlers.HealthCheck)
 	r.Get("/directory", handlers.GetDirectory)
 
-	// Nonce endpoints
-	r.Get("/new-nonce", handlers.NewNonce)
+	// ACME protocol endpoints
+	r.Group(func(r chi.Router) {
+		// Add nonce middleware to all ACME endpoints
+		r.Use(acme.NonceMiddleware)
 
-	// Account management
-	r.Post("/new-account", handlers.NewAccount)
+		// Nonce endpoints
+		r.Get("/new-nonce", handlers.NewNonce)
+		r.Head("/new-nonce", handlers.NewNonce) // Required by RFC 8555
 
-	// Health check
-	r.Get("/health", handlers.HealthCheck)
+		// Account management (with JWT verification)
+		r.Group(func(r chi.Router) {
+			r.Use(acme.JWSVerificationMiddleware) // TODO: We'll implement this next
+			r.Post("/new-account", handlers.NewAccount)
+			r.Post("/account/{id}", handlers.UpdateAccount)
+			r.Post("/account/{id}/key-change", handlers.KeyChange)
+
+			// Order management
+			r.Post("/new-order", handlers.NewOrder)
+			r.Get("/order/{id}", handlers.GetOrder)
+			r.Post("/order/{id}/finalize", handlers.FinalizeOrder)
+
+			// Authorization management
+			r.Get("/authz/{id}", handlers.GetAuthorization)
+
+			// Challenge management
+			r.Post("/challenge/{id}", handlers.ProcessChallenge)
+
+			// Certificate management
+			r.Get("/cert/{certID}", handlers.GetCertificate)
+			r.Post("/revoke-cert", handlers.RevokeCertificate)
+		})
+	})
 
 	return r
 }

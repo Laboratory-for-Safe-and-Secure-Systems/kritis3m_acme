@@ -11,7 +11,9 @@ import (
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/logger"
 )
 
-const TLSStateKey = "TLSState"
+type contextKey string
+
+const TLSStateKey contextKey = "TLSState"
 
 type Server struct {
 	// Get Logger from context
