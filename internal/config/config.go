@@ -47,6 +47,15 @@ type Config struct {
 		LogLevel                int  `json:"log_level"`
 		SecureElementLogSupport bool `json:"secure_element_log_support"`
 	} `json:"asl_config"`
+
+	Database struct {
+		Host     string `json:"host"`
+		Port     int    `json:"port"`
+		User     string `json:"user"`
+		Password string `json:"password"`
+		DBName   string `json:"dbname"`
+		SSLMode  string `json:"sslmode"`
+	} `json:"database"`
 }
 
 // Load reads configuration from a JSON file and environment variables

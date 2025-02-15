@@ -11,6 +11,7 @@ type Flags struct {
 	ConfigPath string
 	Debug      bool
 	Version    bool
+	DBConfig   string
 }
 
 var (
@@ -27,6 +28,7 @@ var (
 func ParseFlags() error {
 	// Define flags
 	flag.StringVar(&GlobalFlags.ConfigPath, "config", "", "path to configuration file")
+	flag.StringVar(&GlobalFlags.DBConfig, "db-config", "", "path to database configuration file")
 	flag.BoolVar(&GlobalFlags.Debug, "debug", false, "enable debug mode")
 	flag.BoolVar(&GlobalFlags.Version, "version", false, "print version information")
 

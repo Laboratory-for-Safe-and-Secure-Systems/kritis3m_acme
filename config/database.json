@@ -1,0 +1,10 @@
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "user": "acme_user",
+    "password": "acme_password",
+    "dbname": "acme_db",
+    "sslmode": "disable"
+  }
+}

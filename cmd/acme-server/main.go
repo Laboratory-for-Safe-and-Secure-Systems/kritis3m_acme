@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,24 +11,68 @@ import (
 
 	asl "github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl"
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/api/router"
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/api/types"
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/config"
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/database"
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/logger"
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/server"
 )
+
+func initDatabase(ctx context.Context, cfg *config.Config) (*database.DB, error) {
+	log := logger.GetLogger(ctx)
+
+	dbConfig := &database.Config{
+		Host:     cfg.Database.Host,
+		Port:     cfg.Database.Port,
+		User:     cfg.Database.User,
+		Password: cfg.Database.Password,
+		DBName:   cfg.Database.DBName,
+		SSLMode:  cfg.Database.SSLMode,
+	}
+
+	db, err := database.New(dbConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	log.Info("Database connection established")
+	return db, nil
+}
 
 func main() {
 	// Initialize global logger
 	log := logger.New(os.Stdout)
 	// Add to context
-	ctx := context.WithValue(context.Background(), logger.CtxKeyLogger, log)
+	ctx := context.WithValue(context.Background(), types.CtxKeyLogger, log)
 
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Errorf("Failed to load configuration: %v", err)
+		os.Exit(1)
 	}
 
-	r := router.New(ctx)
+	// Initialize database if config is provided
+	var db *database.DB
+	if config.GlobalFlags.DBConfig != "" {
+		dbCfg, err := config.Load(config.GlobalFlags.DBConfig, &config.Config{})
+		if err != nil {
+			log.Errorf("Failed to load database configuration: %v", err)
+			os.Exit(1)
+		}
+		cfg.Database = dbCfg.Database
+	}
+
+	if cfg.Database.Host != "" {
+		db, err = initDatabase(ctx, cfg)
+		if err != nil {
+			log.Errorf("Failed to initialize database: %v", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+	}
+
+	r := router.New(ctx, db)
 
 	libConfig := &asl.ASLConfig{
 		LoggingEnabled: cfg.ASLConfig.LoggingEnabled,
