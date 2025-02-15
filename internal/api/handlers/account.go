@@ -2,20 +2,54 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/api/middleware/acme"
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/api/types"
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/database"
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/logger"
 	"github.com/go-chi/chi/v5"
 )
 
+// generateAccountID creates a unique account ID
+func generateAccountID() string {
+	// For now, use timestamp + random suffix
+	return fmt.Sprintf("acct_%d", time.Now().UnixNano())
+}
+
 func NewAccount(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
+	db := r.Context().Value(types.CtxKeyDB).(*database.DB)
+
+	// Get the protected header from context
+	protected, ok := r.Context().Value(acme.JwsProtectedKey).(*acme.JWSHeader)
+	if !ok {
+		log.Error("Failed to get protected header from context")
+		writeError(w, &types.Problem{
+			Type:   "urn:ietf:params:acme:error:serverInternal",
+			Detail: "Failed to get protected header",
+			Status: http.StatusInternalServerError,
+		})
+		return
+	}
+
+	// Get the decoded payload from context
+	payloadBytes, ok := r.Context().Value(acme.DecodedPayloadKey).([]byte)
+	if !ok {
+		log.Error("Failed to get decoded payload from context")
+		writeError(w, &types.Problem{
+			Type:   "urn:ietf:params:acme:error:serverInternal",
+			Detail: "Failed to get decoded payload",
+			Status: http.StatusInternalServerError,
+		})
+		return
+	}
 
 	// Parse the request body
 	var req types.AccountRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(payloadBytes, &req); err != nil {
 		log.Errorf("Failed to decode account request: %v", err)
 		writeError(w, &types.Problem{
 			Type:   "urn:ietf:params:acme:error:malformed",
@@ -35,29 +69,57 @@ func NewAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Extract JWK from JWS header for account key
-	// TODO: Check if account already exists with this key
-	// TODO: Store account in database
+	// Generate a unique account ID
+	accountID := generateAccountID()
+
+	// Store the JWK as JSON
+	jwkJSON, err := json.Marshal(protected.Jwk)
+	if err != nil {
+		log.Errorf("Failed to marshal JWK: %v", err)
+		writeError(w, &types.Problem{
+			Type:   "urn:ietf:params:acme:error:serverInternal",
+			Detail: "Failed to process account key",
+			Status: http.StatusInternalServerError,
+		})
+		return
+	}
 
 	// Create new account
 	account := &types.Account{
-		ID:                   "account-id", // TODO: Generate proper ID
+		ID:                   accountID,
+		Key:                  jwkJSON,
 		Status:               types.AccountStatusValid,
 		Contact:              req.Contact,
 		TermsOfServiceAgreed: true,
 		CreatedAt:            time.Now().Unix(),
 		InitialIP:            r.RemoteAddr,
+		OrdersURL:            fmt.Sprintf("https://%s/orders/%s", r.Host, accountID),
+	}
+
+	// Store account in database
+	if err := db.CreateAccount(r.Context(), account); err != nil {
+		log.Errorf("Failed to create account: %v", err)
+		writeError(w, &types.Problem{
+			Type:   "urn:ietf:params:acme:error:serverInternal",
+			Detail: "Failed to create account",
+			Status: http.StatusInternalServerError,
+		})
+		return
 	}
 
 	// Set response headers
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Location", "/account/"+account.ID)
+	w.Header().Set("Location", fmt.Sprintf("https://%s/account/%s", r.Host, account.ID))
 	w.WriteHeader(http.StatusCreated)
 
 	// Write response
 	if err := json.NewEncoder(w).Encode(account); err != nil {
 		log.Errorf("Failed to encode account response: %v", err)
-		writeError(w, newInternalServerError("Failed to encode response"))
+		writeError(w, &types.Problem{
+			Type:   "urn:ietf:params:acme:error:serverInternal",
+			Detail: "Failed to encode response",
+			Status: http.StatusInternalServerError,
+		})
 		return
 	}
 }

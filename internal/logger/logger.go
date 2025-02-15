@@ -10,11 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/api/types"
 	"github.com/rs/zerolog"
-)
-
-const (
-	CtxKeyLogger = iota
 )
 
 // Logger is a zerolog-based logger implementing the custom and standard log interfaces.
@@ -31,7 +28,7 @@ type keyValue struct {
 
 // GetLogger retrieves the logger from the context.
 func GetLogger(ctx context.Context) *Logger {
-	return ctx.Value(CtxKeyLogger).(*Logger)
+	return ctx.Value(types.CtxKeyLogger).(*Logger)
 }
 
 // New creates a new zerolog-based logger which writes to the specified writer.

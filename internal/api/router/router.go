@@ -12,16 +12,23 @@ import (
 
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/api/handlers"
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/api/middleware/acme"
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/api/types"
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/database"
 	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_acme/internal/logger"
 )
 
-// ctxKeyLogger is the context key for the logger.
-const (
-	ctxKeyLogger = iota
-)
-
-func New(ctx context.Context) *chi.Mux {
+func New(ctx context.Context, db *database.DB) *chi.Mux {
 	r := chi.NewRouter()
+
+	// Add database to context middleware if provided
+	if db != nil {
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := context.WithValue(r.Context(), types.CtxKeyDB, db)
+				next.ServeHTTP(w, r.WithContext(ctx))
+			})
+		})
+	}
 
 	// Global middleware
 	r.Use(withLogger(logger.GetLogger(ctx)))
@@ -112,7 +119,7 @@ func withLogger(logger *logger.Logger) func(next http.Handler) http.Handler {
 				)
 			}()
 
-			ctx := context.WithValue(r.Context(), ctxKeyLogger, logger)
+			ctx := context.WithValue(r.Context(), types.CtxKeyLogger, logger)
 			next.ServeHTTP(ww, r.WithContext(ctx))
 		}
 		return http.HandlerFunc(fn)

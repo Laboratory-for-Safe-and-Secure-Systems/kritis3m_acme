@@ -12,6 +12,13 @@ import (
 func GetDirectory(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
+	log.Infow("Received directory request",
+		"headers", r.Header,
+		"method", r.Method,
+		"url", r.URL.String(),
+		"proto", r.Proto,
+	)
+
 	// Determine base URL (respect X-Forwarded-Proto header and ASL state for proxied requests)
 	scheme := "http"
 	if aslState := r.Context().Value(server.TLSStateKey); aslState != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
