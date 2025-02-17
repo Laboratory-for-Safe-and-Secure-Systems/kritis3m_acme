@@ -57,7 +57,7 @@ func New(ctx context.Context, db *database.DB) *chi.Mux {
 
 		// Account management (with JWT verification)
 		r.Group(func(r chi.Router) {
-			r.Use(acme.JWSVerificationMiddleware) // TODO: We'll implement this next
+			r.Use(acme.JWSVerificationMiddleware)
 			r.Post("/new-account", handlers.NewAccount)
 			r.Post("/account/{id}", handlers.UpdateAccount)
 			r.Post("/account/{id}/key-change", handlers.KeyChange)
@@ -65,16 +65,17 @@ func New(ctx context.Context, db *database.DB) *chi.Mux {
 			// Order management
 			r.Post("/new-order", handlers.NewOrder)
 			r.Get("/order/{id}", handlers.GetOrder)
+			r.Post("/order/{id}", handlers.GetOrder)
 			r.Post("/order/{id}/finalize", handlers.FinalizeOrder)
 
 			// Authorization management
 			r.Get("/authz/{id}", handlers.GetAuthorization)
-
+			r.Post("/authz/{id}", handlers.GetAuthorization)
 			// Challenge management
 			r.Post("/challenge/{id}", handlers.ProcessChallenge)
 
 			// Certificate management
-			r.Get("/cert/{certID}", handlers.GetCertificate)
+			r.Post("/cert/{certID}", handlers.GetCertificate)
 			r.Post("/revoke-cert", handlers.RevokeCertificate)
 		})
 	})
@@ -103,10 +104,7 @@ func withLogger(logger *logger.Logger) func(next http.Handler) http.Handler {
 			t1 := time.Now()
 
 			defer func() {
-				scheme := "http"
-				if r.TLS != nil {
-					scheme = "https"
-				}
+				scheme := "https"
 
 				logger.Infow("HTTP request",
 					"Method", r.Method,

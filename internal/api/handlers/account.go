@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -13,25 +12,16 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// generateAccountID creates a unique account ID
-func generateAccountID() string {
-	// For now, use timestamp + random suffix
-	return fmt.Sprintf("acct_%d", time.Now().UnixNano())
-}
-
 func NewAccount(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 	db := r.Context().Value(types.CtxKeyDB).(*database.DB)
+	baseURL := getBaseURL(r)
 
 	// Get the protected header from context
 	protected, ok := r.Context().Value(acme.JwsProtectedKey).(*acme.JWSHeader)
 	if !ok {
 		log.Error("Failed to get protected header from context")
-		writeError(w, &types.Problem{
-			Type:   "urn:ietf:params:acme:error:serverInternal",
-			Detail: "Failed to get protected header",
-			Status: http.StatusInternalServerError,
-		})
+		writeError(w, newInternalServerError("Failed to get protected header"))
 		return
 	}
 
@@ -39,11 +29,7 @@ func NewAccount(w http.ResponseWriter, r *http.Request) {
 	payloadBytes, ok := r.Context().Value(acme.DecodedPayloadKey).([]byte)
 	if !ok {
 		log.Error("Failed to get decoded payload from context")
-		writeError(w, &types.Problem{
-			Type:   "urn:ietf:params:acme:error:serverInternal",
-			Detail: "Failed to get decoded payload",
-			Status: http.StatusInternalServerError,
-		})
+		writeError(w, newInternalServerError("Failed to get decoded payload"))
 		return
 	}
 
@@ -51,36 +37,24 @@ func NewAccount(w http.ResponseWriter, r *http.Request) {
 	var req types.AccountRequest
 	if err := json.Unmarshal(payloadBytes, &req); err != nil {
 		log.Errorf("Failed to decode account request: %v", err)
-		writeError(w, &types.Problem{
-			Type:   "urn:ietf:params:acme:error:malformed",
-			Detail: "Failed to parse account request",
-			Status: http.StatusBadRequest,
-		})
+		writeError(w, newMalformedError("Failed to parse account request"))
 		return
 	}
 
 	// Check if Terms of Service were agreed to
 	if !req.TermsOfServiceAgreed {
-		writeError(w, &types.Problem{
-			Type:   "urn:ietf:params:acme:error:userActionRequired",
-			Detail: "Must agree to terms of service",
-			Status: http.StatusBadRequest,
-		})
+		writeError(w, newBadRequestError("Must agree to terms of service"))
 		return
 	}
 
 	// Generate a unique account ID
-	accountID := generateAccountID()
+	accountID := generateID("acct")
 
 	// Store the JWK as JSON
 	jwkJSON, err := json.Marshal(protected.Jwk)
 	if err != nil {
 		log.Errorf("Failed to marshal JWK: %v", err)
-		writeError(w, &types.Problem{
-			Type:   "urn:ietf:params:acme:error:serverInternal",
-			Detail: "Failed to process account key",
-			Status: http.StatusInternalServerError,
-		})
+		writeError(w, newInternalServerError("Failed to process account key"))
 		return
 	}
 
@@ -93,33 +67,27 @@ func NewAccount(w http.ResponseWriter, r *http.Request) {
 		TermsOfServiceAgreed: true,
 		CreatedAt:            time.Now().Unix(),
 		InitialIP:            r.RemoteAddr,
-		OrdersURL:            fmt.Sprintf("https://%s/orders/%s", r.Host, accountID),
+		OrdersURL:            endpointURL(baseURL, "orders", accountID),
 	}
 
 	// Store account in database
 	if err := db.CreateAccount(r.Context(), account); err != nil {
 		log.Errorf("Failed to create account: %v", err)
-		writeError(w, &types.Problem{
-			Type:   "urn:ietf:params:acme:error:serverInternal",
-			Detail: "Failed to create account",
-			Status: http.StatusInternalServerError,
-		})
+		writeError(w, newInternalServerError("Failed to create account"))
 		return
 	}
 
-	// Set response headers
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Location", fmt.Sprintf("https://%s/account/%s", r.Host, account.ID))
-	w.WriteHeader(http.StatusCreated)
+	// Set response headers with correct account URL format
+	accountURL := endpointURL(baseURL, "account", account.ID)
+	w.Header().Set("Location", accountURL)
+
+	// Also update the OrdersURL in the account
+	account.OrdersURL = endpointURL(baseURL, "orders", account.ID)
 
 	// Write response
-	if err := json.NewEncoder(w).Encode(account); err != nil {
+	if err := writeJSON(w, http.StatusCreated, account); err != nil {
 		log.Errorf("Failed to encode account response: %v", err)
-		writeError(w, &types.Problem{
-			Type:   "urn:ietf:params:acme:error:serverInternal",
-			Detail: "Failed to encode response",
-			Status: http.StatusInternalServerError,
-		})
+		writeError(w, newInternalServerError("Failed to encode response"))
 		return
 	}
 }

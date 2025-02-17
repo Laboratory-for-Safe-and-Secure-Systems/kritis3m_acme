@@ -41,7 +41,7 @@ const (
 	// Context keys for storing verified data
 	jwsPayloadKey     contextKey = "jws_payload"
 	JwsProtectedKey   contextKey = "jws_protected"
-	accountIDKey      contextKey = "account_id"
+	AccountIDKey      contextKey = "account_id"
 	DecodedPayloadKey contextKey = "decoded_payload"
 
 	// Error types
@@ -235,6 +235,41 @@ func verifyRequestURL(r *http.Request, jwsURL string) error {
 }
 
 func verifyExistingAccount(kid string, jws JWSRequest, r *http.Request) error {
+	log := logger.GetLogger(r.Context())
+	log.Debugw("Verifying existing account", "kid", kid)
+
+	// Parse the kid URL
+	kidURL, err := url.Parse(kid)
+	if err != nil {
+		log.Errorw("Failed to parse kid URL", "kid", kid, "error", err)
+		return fmt.Errorf("invalid kid URL: %w", err)
+	}
+
+	// Extract account ID from path
+	parts := strings.Split(strings.Trim(kidURL.Path, "/"), "/")
+	if len(parts) != 2 || parts[0] != "account" {
+		log.Errorw("Invalid account URL format",
+			"kid", kid,
+			"parts", parts,
+			"path", kidURL.Path)
+		return fmt.Errorf("invalid account URL format: %s", kid)
+	}
+	accountID := parts[1]
+	log.Debugw("Extracted account ID", "accountID", accountID)
+
+	// Get the account from database using accountID
+	db := r.Context().Value(types.CtxKeyDB).(*database.DB)
+	account, err := db.GetAccount(r.Context(), accountID)
+	if err != nil {
+		return fmt.Errorf("failed to get account: %w", err)
+	}
+
+	// Parse the stored public key
+	var publicKey jose.JSONWebKey
+	if err := json.Unmarshal(account.Key, &publicKey); err != nil {
+		return fmt.Errorf("failed to parse stored public key: %w", err)
+	}
+
 	// Parse the JWS using proper JSON structure
 	rawJWS := map[string]string{
 		"protected": jws.Protected,
@@ -251,19 +286,6 @@ func verifyExistingAccount(kid string, jws JWSRequest, r *http.Request) error {
 		return fmt.Errorf("failed to parse JWS: %w", err)
 	}
 
-	// Get the account from database using kid
-	db := r.Context().Value(types.CtxKeyDB).(*database.DB)
-	account, err := db.GetAccount(r.Context(), kid)
-	if err != nil {
-		return fmt.Errorf("failed to get account: %w", err)
-	}
-
-	// Parse the stored public key
-	var publicKey jose.JSONWebKey
-	if err := json.Unmarshal(account.Key, &publicKey); err != nil {
-		return fmt.Errorf("failed to parse stored public key: %w", err)
-	}
-
 	// Verify the signature using the public key
 	_, err = sig.Verify(&publicKey)
 	if err != nil {
@@ -271,8 +293,8 @@ func verifyExistingAccount(kid string, jws JWSRequest, r *http.Request) error {
 	}
 
 	// Add account ID to context for later use
-	ctx := context.WithValue(r.Context(), accountIDKey, account.ID)
-	*r = *r.WithContext(ctx) // Update the request with the new context
+	ctx := context.WithValue(r.Context(), AccountIDKey, account.ID)
+	*r = *r.WithContext(ctx)
 
 	return nil
 }

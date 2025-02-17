@@ -14,20 +14,25 @@ const (
 )
 
 type Authorization struct {
+	ID         string              `json:"id"`
 	Status     AuthorizationStatus `json:"status"`
-	Expires    *Time               `json:"expires,omitempty"`
 	Identifier Identifier          `json:"identifier"`
+	Expires    *Time               `json:"expires"`
 	Challenges []Challenge         `json:"challenges"`
-	Wildcard   *bool               `json:"wildcard,omitempty"`
+	OrderID    string              `json:"orderId"`
+	Wildcard   bool                `json:"wildcard"`
+	CreatedAt  time.Time           `json:"createdAt"`
+	UpdatedAt  time.Time           `json:"updatedAt"`
 }
 
 type Challenge struct {
-	Type      string          `json:"type"`
-	URL       string          `json:"url"`
-	Status    ChallengeStatus `json:"status"`
-	Validated *Time           `json:"validated,omitempty"`
-	Error     *Problem        `json:"error,omitempty"`
-	Token     string          `json:"token"`
+	ID              string          `json:"id"`
+	AuthorizationID string          `json:"-"` // Foreign key to Authorization
+	Type            string          `json:"type"`
+	URL             string          `json:"url"`
+	Status          ChallengeStatus `json:"status"`
+	Token           string          `json:"token"`
+	Validated       *Time           `json:"validated,omitempty"`
 }
 
 type ChallengeStatus string
@@ -38,8 +43,3 @@ const (
 	ChallengeStatusValid      ChallengeStatus = "valid"
 	ChallengeStatusInvalid    ChallengeStatus = "invalid"
 )
-
-// Time is a wrapper around time.Time that serializes to RFC3339
-type Time struct {
-	time.Time
-}
